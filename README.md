@@ -10,4 +10,4 @@ just felt like it
 
 ## todo's
 
-- [ ] Basic text editing
+- [x] Basic text editing
