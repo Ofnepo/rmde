@@ -11,3 +11,5 @@ just felt like it
 ## todo's
 
 - [x] Basic text editing
+- [ ] Tree file view
+- [ ] Open folders

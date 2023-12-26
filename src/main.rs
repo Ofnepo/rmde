@@ -61,7 +61,6 @@ fn main() {
             .unwrap();
         file.origin = file.buf.text();
         save_file.write_all(file.origin.as_bytes()).expect("did't work idk");
-        println!("{:?}", file.origin);
         c.damage();
     });
 
