@@ -2,6 +2,8 @@ use std::{fs::{File, OpenOptions, read_dir}, io::{Read, Write}, path::Path, str:
 
 use fltk::{window::MenuWindow, app::App, prelude::*, text::{TextEditor, TextBuffer}, button::Button, tree::{Tree, TreeItem}};
 
+use eframe::egui;
+
 
 #[derive(Debug, Clone)]
 struct RayFile{
@@ -126,48 +128,62 @@ impl RayFolder {
 
 
 
-fn main() {
-    let app = App::default();
-    let mut win = MenuWindow::default().with_size(1270, 720);
-    let mut file = RayFile::new("README.md".into());
-    let mut save_bt = Button::new(2, 2, 50, 26, "Save");
-    let mut tree = Tree::new(2,30,146,win.height()-40,"");
+fn main() -> Result<(), eframe::Error> {
+    //let mut file = RayFile::new("README.md".into());
 
-    let mut edit = TextEditor::default();
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        ..Default::default()
+    };
+    eframe::run_native(
+        "My egui App",
+        options,
+        Box::new(|_| {
+            // This gives us image support:
 
-    edit.set_size(win.width()-160, win.height()-40);
-    edit.set_pos(150, 30);
+            Box::<MyApp>::default()
+        }),
+    )
+}
 
-    let dir = RayFolder::new(".".to_string());
-    for file in &dir.files{
-        tree.add(&file);
-        tree.set_callback( |c| {
-            println!("{:?}", &c.find_clicked(true).unwrap().label().unwrap());
 
-            let mut buf = TextBuffer::default();
-            buf.set_text(RayFile::new((&c).find_clicked(true).unwrap().label().unwrap()).origin.as_str());
-            //edit.set_buffer(buf);
+struct MyApp {
+    current: RayFile,
+}
+
+impl Default for MyApp {
+    fn default() -> Self {
+        Self {
+            current: RayFile::default()
+        }
+    }
+}
+
+impl eframe::App for MyApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.horizontal(|ui|{
+                if ui.button("Save").clicked() {
+                    let mut save_file = OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(false)
+                        .open(&self.current.path)
+                        .unwrap();
+                    save_file.write_all(&self.current.origin.as_bytes()).ok();
+                }
+                if ui.button("Open").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        self.current = RayFile::new(path.display().to_string());
+                    }
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.text_edit_multiline(&mut self.current.origin);
+            });
+            
+
+            
         });
     }
-
-
-
-
-    save_bt.set_callback(move| c |{
-        let mut save_file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&file.path)
-            .unwrap();
-        //file.origin = file.buf.text();
-        save_file.write_all(file.origin.as_bytes()).expect("did't work idk");
-        c.damage();
-    });
-
-    
-    win.end();
-    win.show();
-
-    app.run().unwrap();
 }
