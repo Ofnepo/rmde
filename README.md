@@ -11,6 +11,8 @@ just felt like it
 ## todo's
 
 - [x] Basic text editing
-- [ ] Tree file view
-- [ ] Open folders
-  
+- [x] Tree file view
+- [x] Open folders
+- [ ] Saving States
+- [ ] Showing changes
+- [ ] Basic MD visualas

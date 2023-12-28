@@ -1,8 +1,6 @@
-use std::{fs::{File, OpenOptions, read_dir}, io::{Read, Write}, path::Path, str::FromStr};
+use std::{fs::{File, OpenOptions, read_dir}, io::{Read, Write}};
 
-use fltk::{window::MenuWindow, app::App, prelude::*, text::{TextEditor, TextBuffer}, button::Button, tree::{Tree, TreeItem}};
-
-use eframe::egui;
+use eframe::egui::{self, Ui};
 
 
 #[derive(Debug, Clone)]
@@ -24,7 +22,7 @@ impl Default for RayFile {
 
 
 impl RayFile {
-    fn new(path: String) -> Self {
+    pub fn new(path: String) -> Self {
         match path {
             c if c.is_empty() => Self::default(),
             _ => {
@@ -32,7 +30,7 @@ impl RayFile {
                 let mut file =  File::open(&path).ok().unwrap();
                 file.read_to_string(&mut origin).ok();
 
-                let mut name = path
+                let name = path
                     .split("/")
                     .last()
                     .unwrap()
@@ -93,8 +91,7 @@ impl RayFolder {
                     files.push(i.path().to_str().unwrap().to_string());
                 }
             });
-            let mut name = String::new();
-            name = path.split("/").last().unwrap().to_string();
+            let name = path.split("/").last().unwrap().to_string();
             
             Self { 
                 name: name, 
@@ -108,19 +105,37 @@ impl RayFolder {
     fn data(self) -> String{
         let mut file_temp = String::new();
         for i in &self.files{
-            file_temp+= &i;
+            file_temp+= &i.split("/").last().unwrap();
             file_temp+= ", ";
         }
         let mut folder_temp = String::new();
         for dir in self.folders{
             for line in dir.data().split("\n"){
-                folder_temp+= "\t";
+                folder_temp+= "\n\t";
                 folder_temp+= line;
             }
         } 
 
-        let my = "path: ".to_string() +  &self.path + "\nname: " + &self.name + "\nfiles: " + &file_temp + "\nfolders: " + &folder_temp;
+        let my = "\nname: ".to_string() + &self.name + "\nfiles: " + &file_temp + "\nfolders: " + &folder_temp;
         my
+    }
+    fn set_ui(self, ui: &mut Ui, c: &mut RayFile){
+        for folder in self.folders{
+            ui.collapsing(
+               &folder.name
+            , |ui|{
+                folder.clone().set_ui(ui, c);
+            });
+        }
+        for file in self.files{
+            if ui.small_button(file.split("/").last().unwrap()).clicked(){
+                let new = RayFile::new(file);
+                c.name = new.name;
+                c.origin = new.origin;
+                c.path = new.path;
+                
+            }
+        }
     }
     
 }
@@ -148,13 +163,15 @@ fn main() -> Result<(), eframe::Error> {
 
 
 struct MyApp {
-    current: RayFile,
+    file: RayFile,
+    folder: RayFolder,
 }
 
 impl Default for MyApp {
     fn default() -> Self {
         Self {
-            current: RayFile::default()
+            file: RayFile::default(),
+            folder:RayFolder::default()
         }
     }
 }
@@ -168,18 +185,27 @@ impl eframe::App for MyApp {
                         .write(true)
                         .create(true)
                         .truncate(false)
-                        .open(&self.current.path)
+                        .open(&self.file.path)
                         .unwrap();
-                    save_file.write_all(&self.current.origin.as_bytes()).ok();
+                    save_file.write_all(&self.file.origin.as_bytes()).ok();
                 }
                 if ui.button("Open").clicked() {
                     if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        self.current = RayFile::new(path.display().to_string());
+                        self.file = RayFile::new(path.display().to_string());
+                    }
+                }
+                if ui.button("Open Folder").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                        self.folder = RayFolder::new(path.display().to_string());
                     }
                 }
             });
             ui.horizontal(|ui| {
-                ui.text_edit_multiline(&mut self.current.origin);
+                ui.collapsing(&self.folder.name, |ui|self.folder.clone().set_ui(ui, &mut self.file));
+                ui.vertical(|ui|{
+                    ui.label(&self.file.name);    
+                    ui.text_edit_multiline(&mut self.file.origin);
+                });
             });
             
 
