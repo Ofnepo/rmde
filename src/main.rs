@@ -119,17 +119,17 @@ impl RayFolder {
         let my = "\nname: ".to_string() + &self.name + "\nfiles: " + &file_temp + "\nfolders: " + &folder_temp;
         my
     }
-    fn set_ui(self, ui: &mut Ui, c: &mut RayFile){
-        for folder in self.folders{
+    fn set_ui(&self, ui: &mut Ui, c: &mut RayFile){
+        for folder in &self.folders{
             ui.collapsing(
                &folder.name
             , |ui|{
-                folder.clone().set_ui(ui, c);
+                folder.set_ui(ui, c);
             });
         }
-        for file in self.files{
+        for file in &self.files{
             if ui.small_button(file.split("/").last().unwrap()).clicked(){
-                let new = RayFile::new(file);
+                let new = RayFile::new(file.clone());
                 c.name = new.name;
                 c.origin = new.origin;
                 c.path = new.path;
@@ -201,7 +201,7 @@ impl eframe::App for MyApp {
                 }
             });
             ui.horizontal(|ui| {
-                ui.collapsing(&self.folder.name, |ui|self.folder.clone().set_ui(ui, &mut self.file));
+                ui.collapsing(&self.folder.name, |ui|self.folder.set_ui(ui, &mut self.file));
                 ui.vertical(|ui|{
                     ui.label(&self.file.name);    
                     ui.text_edit_multiline(&mut self.file.origin);
