@@ -13,6 +13,7 @@ just felt like it
 - [x] Basic text editing
 - [x] Tree file view
 - [x] Open folders
-- [ ] Saving States
+- [x] Basic State Saving
+- [ ] automatic state saving
 - [ ] Showing changes
 - [ ] Basic MD visualas

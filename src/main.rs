@@ -1,9 +1,10 @@
 use std::{fs::{File, OpenOptions, read_dir}, io::{Read, Write}};
 
 use eframe::egui::{self, Ui};
+use serde::{Deserialize, Serialize};
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RayFile{
     path: String,
     name: String,
@@ -51,7 +52,7 @@ impl RayFile {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RayFolder {
     path: String,
     name: String,
@@ -102,7 +103,7 @@ impl RayFolder {
             
         }
     }
-    fn data(self) -> String{
+    fn _data(self) -> String{
         let mut file_temp = String::new();
         for i in &self.files{
             file_temp+= &i.split("/").last().unwrap();
@@ -110,7 +111,7 @@ impl RayFolder {
         }
         let mut folder_temp = String::new();
         for dir in self.folders{
-            for line in dir.data().split("\n"){
+            for line in dir._data().split("\n"){
                 folder_temp+= "\n\t";
                 folder_temp+= line;
             }
@@ -151,17 +152,16 @@ fn main() -> Result<(), eframe::Error> {
         ..Default::default()
     };
     eframe::run_native(
-        "My egui App",
+        "rmde",
         options,
         Box::new(|_| {
-            // This gives us image support:
-
             Box::<MyApp>::default()
+
         }),
     )
 }
 
-
+#[derive(Deserialize,Serialize)]
 struct MyApp {
     file: RayFile,
     folder: RayFolder,
@@ -199,6 +199,26 @@ impl eframe::App for MyApp {
                         self.folder = RayFolder::new(path.display().to_string());
                     }
                 }
+                if ui.button("Save State").clicked(){
+                    let state = ron::ser::to_string_pretty(
+                        self,ron::ser::PrettyConfig::default()
+                    ).unwrap();
+        
+                    let mut save_file = OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open("state.ron")
+                        .unwrap();
+                    save_file.write_all(&state.as_bytes()).ok();
+                }
+                if ui.button("Load State").clicked(){
+                    let state = RayFile::new("state.ron".to_string()).origin;
+                    let state: MyApp = ron::from_str(&state).unwrap();
+                    self.file = state.file;
+                    self.folder = state.folder;
+                    
+                }
             });
             ui.horizontal(|ui| {
                 ui.collapsing(&self.folder.name, |ui|self.folder.set_ui(ui, &mut self.file));
@@ -207,8 +227,8 @@ impl eframe::App for MyApp {
                     ui.text_edit_multiline(&mut self.file.origin);
                 });
             });
-            
 
+            
             
         });
     }
