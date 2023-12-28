@@ -13,3 +13,4 @@ just felt like it
 - [x] Basic text editing
 - [ ] Tree file view
 - [ ] Open folders
+  
