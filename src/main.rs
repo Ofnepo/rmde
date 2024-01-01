@@ -164,7 +164,7 @@ struct MyApp {
 
 impl Default for MyApp {
     fn default() -> Self {
-        let state = RayFile::new("state.ron".to_string()).origin;
+        let state = RayFile::new(".state.ron".to_string()).origin;
         if state.is_empty() {
             return Self {
                 file: RayFile::default(),
