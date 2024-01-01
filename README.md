@@ -17,3 +17,4 @@ just felt like it
 - [ ] automatic state saving
 - [ ] Showing changes
 - [ ] Basic MD visualas
+- [ ] Keep File Tree updated
