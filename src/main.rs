@@ -1,5 +1,11 @@
+mod my_lib;
+
 use eframe::egui::{self, Ui};
-use markdown::{to_mdast, ParseOptions};
+use markdown::{
+    mdast::{Node, Root},
+    to_mdast, ParseOptions,
+};
+use my_lib::md_to_frame;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{read_dir, OpenOptions},
@@ -31,7 +37,6 @@ impl RayFile {
             c if c.is_empty() => Self::default(),
             _ => {
                 let mut origin = String::new();
-                println!("{}", &path);
                 let mut file = OpenOptions::new()
                     .read(true)
                     .write(true)
@@ -40,16 +45,11 @@ impl RayFile {
                     .open(&path)
                     .unwrap();
                 file.read_to_string(&mut origin).ok();
-                match path.split('.').last().unwrap() {
-                    "md" => {
-                        //let md = to_mdast(&origin, &ParseOptions::default()).unwrap();
-                        //println!("{:?}", md);
-                    }
-                    _ => (),
-                }
 
                 let name = path.split('/').last().unwrap().to_string();
                 let buf = origin.clone();
+
+                //println!("Path: {}\nOrigin: {}\nBuf: {}", &path, &origin, &buf);
                 Self {
                     name,
                     path,
@@ -139,6 +139,7 @@ impl RayFolder {
                 let new = RayFile::new(file.clone());
                 c.name = new.name;
                 c.origin = new.origin;
+                c.buf = new.buf;
                 c.path = new.path;
             }
         }
@@ -156,23 +157,32 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native("rmde", options, Box::new(|_| Box::<MyApp>::default()))
 }
 
-#[derive(Deserialize, Serialize)]
 struct MyApp {
     file: RayFile,
     folder: RayFolder,
+    md: Node,
 }
 
 impl Default for MyApp {
     fn default() -> Self {
         let state = RayFile::new(".state.ron".to_string()).origin;
+
+        let mut res = Self {
+            file: RayFile::default(),
+            folder: RayFolder::default(),
+            md: Node::Root(Root {
+                children: Vec::new(),
+                position: None,
+            }),
+        };
         if state.is_empty() {
-            return Self {
-                file: RayFile::default(),
-                folder: RayFolder::default(),
-            };
+            return res;
         }
-        let state: MyApp = ron::from_str(&state).unwrap();
-        state
+        let state: (RayFile, RayFolder) = ron::from_str(&state).unwrap();
+        res.file = state.0;
+        res.folder = state.1;
+        res.md = to_mdast(&res.file.buf, &ParseOptions::default()).unwrap();
+        res
     }
 }
 
@@ -206,14 +216,16 @@ impl eframe::App for MyApp {
                     self.folder.set_ui(ui, &mut self.file)
                 });
                 ui.vertical(|ui| {
+                    md_to_frame(ui, &self.md);
+                });
+                ui.vertical(|ui| {
                     ui.horizontal(|ui| {
                         ui.label(&self.file.name);
                         if self.file.origin != self.file.buf {
                             let _ = ui.radio(true, "");
+                            self.md = to_mdast(&self.file.buf, &ParseOptions::default()).unwrap();
                         }
                     });
-
-                    //println!("buf: {:?}\norigin: {:?}", self.file.buf, self.file.origin);
                     ui.code_editor(&mut self.file.buf);
                 });
             });
@@ -221,14 +233,17 @@ impl eframe::App for MyApp {
         });
         ctx.input(|i| {
             if i.viewport().close_requested() {
-                let state =
-                    ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default()).unwrap();
+                let state = ron::ser::to_string_pretty(
+                    &(&self.file, &self.folder),
+                    ron::ser::PrettyConfig::default(),
+                )
+                .unwrap();
 
                 let mut save_file = OpenOptions::new()
                     .write(true)
                     .create(true)
                     .truncate(true)
-                    .open("state.ron")
+                    .open(".state.ron")
                     .unwrap();
                 save_file.write_all(state.as_bytes()).ok();
             }
