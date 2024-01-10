@@ -12,8 +12,8 @@ use markdown::{
 pub struct RayFile {
     pub path: String,
     pub name: String,
-    pub origin: String,
     pub buf: String,
+    pub is_modified: bool
 }
 
 impl Default for RayFile {
@@ -21,8 +21,8 @@ impl Default for RayFile {
         Self {
             path: String::new(),
             name: String::new(),
-            origin: String::new(),
             buf: String::new(),
+            is_modified: false
         }
     }
 }
@@ -32,7 +32,7 @@ impl RayFile {
         match path {
             c if c.is_empty() => Self::default(),
             _ => {
-                let mut origin = String::new();
+                let mut buf = String::new();
                 let mut file = OpenOptions::new()
                     .read(true)
                     .write(true)
@@ -40,17 +40,16 @@ impl RayFile {
                     .truncate(false)
                     .open(&path)
                     .unwrap();
-                file.read_to_string(&mut origin).ok();
+                file.read_to_string(&mut buf).ok();
 
                 let name = path.split('/').last().unwrap().to_string();
-                let buf = origin.clone();
 
                 //println!("Path: {}\nOrigin: {}\nBuf: {}", &path, &origin, &buf);
                 Self {
                     name,
                     path,
-                    origin,
                     buf,
+                    is_modified: false
                 }
             }
         }
@@ -63,8 +62,8 @@ impl RayFile {
             .truncate(true)
             .open(&self.path)
             .unwrap();
-        self.origin = self.buf.clone();
-        save_file.write_all(self.origin.as_bytes()).ok();
+        self.is_modified = false;
+        save_file.write_all(self.buf.as_bytes()).ok();
     }
 }
 
@@ -145,7 +144,7 @@ pub struct MyApp {
 
 impl Default for MyApp {
     fn default() -> Self {
-        let state = RayFile::new(".state.ron".to_string()).origin;
+        let state = RayFile::new(".state.ron".to_string()).buf;
 
         let mut res = Self {
             file: RayFile::default(),

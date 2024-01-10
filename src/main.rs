@@ -1,9 +1,11 @@
 pub mod my_lib;
 pub mod core;
+mod ui;
 
 use eframe::egui::{self, Ui};
 use my_lib::md_to_frame;
 use crate::core::{RayFile, RayFolder, MyApp};
+use crate::ui::editor_with_title;
 
 fn main() -> Result<(), eframe::Error> {
     //let mut file = RayFile::new("README.md".into());
@@ -46,9 +48,9 @@ impl eframe::App for MyApp {
                             if ui.small_button(file.split('/').last().unwrap()).clicked() {
                                 let new = RayFile::new(file.clone());
                                 c.name = new.name;
-                                c.origin = new.origin;
                                 c.buf = new.buf;
                                 c.path = new.path;
+                                c.is_modified = new.is_modified;
                             }
                         }
                     }
@@ -58,14 +60,9 @@ impl eframe::App for MyApp {
                     md_to_frame(ui, &self.md);
                 });
                 ui.vertical(|ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(&self.file.name);
-                        if self.file.origin != self.file.buf {
-                            let _ = ui.radio(true, "");
-                            self.parse_md();
-                        }
-                    });
-                    ui.code_editor(&mut self.file.buf);
+                    if ui.add( editor_with_title(&self.file.name, &mut self.file.buf, &mut self.file.is_modified)).changed() {
+                        self.parse_md();
+                    }
                 });
             });
             ui.label("hi");
