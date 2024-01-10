@@ -8,23 +8,12 @@ use markdown::{
     to_mdast, ParseOptions,
 };
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct RayFile {
     pub path: String,
     pub name: String,
     pub buf: String,
     pub is_modified: bool
-}
-
-impl Default for RayFile {
-    fn default() -> Self {
-        Self {
-            path: String::new(),
-            name: String::new(),
-            buf: String::new(),
-            is_modified: false
-        }
-    }
 }
 
 impl RayFile {
@@ -67,23 +56,12 @@ impl RayFile {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 pub struct RayFolder {
     pub path: String,
     pub name: String,
     pub files: Vec<String>,
     pub folders: Vec<RayFolder>,
-}
-
-impl Default for RayFolder {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            path: String::new(),
-            files: Vec::new(),
-            folders: Vec::new(),
-        }
-    }
 }
 
 impl RayFolder {
