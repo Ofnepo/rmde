@@ -1,6 +1,6 @@
-use eframe::egui::{Ui, Widget, Response};
+use eframe::egui::{Ui, Response};
 
-fn editor_with_title_ui(ui: &mut Ui, title: &str, content: &mut String, is_modified: &mut bool) -> Response {
+pub fn editor_with_title_show(ui: &mut Ui, title: &str, content: &mut String, is_modified: &mut bool) -> Response {
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
             ui.label(title);
@@ -16,6 +16,47 @@ fn editor_with_title_ui(ui: &mut Ui, title: &str, content: &mut String, is_modif
     }).inner
 }
 
-pub fn editor_with_title<'a>(title: &'a str, content: &'a mut String, is_modified: &'a mut bool) -> impl Widget + 'a {
-    move |ui: &mut Ui| editor_with_title_ui(ui, title, content, is_modified)
+pub struct TreeViewResponse<Leaf>{
+    pub response: Response,
+    pub clicked_leaf: Option<Leaf>
+}
+ 
+pub trait TreeViewNode<Leaf>
+where
+    Self: Sized,
+    Leaf: TreeViewLeaf
+{
+
+    fn title(&self) -> &str;
+    fn children(&self) -> Vec<Self>;
+    fn leaves(&self) -> Vec<Leaf>;
+}
+
+pub trait TreeViewLeaf
+{
+    fn title(&self) -> &str;
+}
+
+pub fn tree_view_show<L, N>(ui: &mut Ui, node: N) -> TreeViewResponse<L>
+    where L: TreeViewLeaf,
+        N: TreeViewNode< L>,
+    {
+    let collapsing_response = ui.collapsing(node.title(), |ui| {
+        let mut clicked_leaf = None;
+        for node in node.children() {
+            let inner_clicked = tree_view_show(ui, node).clicked_leaf;
+            clicked_leaf = clicked_leaf.or(inner_clicked);
+        }
+        for leaf in node.leaves(){
+            if ui.small_button(leaf.title()).clicked() {
+                clicked_leaf = Some(leaf);
+            }
+        }
+        clicked_leaf
+    });
+
+    TreeViewResponse{
+        response: collapsing_response.header_response,
+        clicked_leaf: collapsing_response.body_returned.flatten()
+    }
 }

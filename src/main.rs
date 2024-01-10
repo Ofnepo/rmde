@@ -2,10 +2,10 @@ pub mod my_lib;
 pub mod core;
 mod ui;
 
-use eframe::egui::{self, Ui};
+use eframe::egui::{self};
 use my_lib::md_to_frame;
 use crate::core::{RayFile, RayFolder, MyApp};
-use crate::ui::editor_with_title;
+use crate::ui::{editor_with_title_show, TreeViewNode, TreeViewLeaf, tree_view_show};
 
 fn main() -> Result<(), eframe::Error> {
     //let mut file = RayFile::new("README.md".into());
@@ -37,40 +37,47 @@ impl eframe::App for MyApp {
                 }
             });
             ui.horizontal(|ui| {
-                ui.collapsing(&self.folder.name, |ui| {
-                    fn set_ui(ui: &mut Ui, folder: &RayFolder, c: &mut RayFile) {
-                        for subfolder in &folder.folders {
-                            ui.collapsing(&subfolder.name, |ui| {
-                                set_ui( ui, subfolder, c);
-                            });
-                        }
-                        for file in &folder.files {
-                            if ui.small_button(file.split('/').last().unwrap()).clicked() {
-                                let new = RayFile::new(file.clone());
-                                c.name = new.name;
-                                c.buf = new.buf;
-                                c.path = new.path;
-                                c.is_modified = new.is_modified;
-                            }
-                        }
-                    }
-                    set_ui(ui, &self.folder, &mut self.file)
-                });
+                if let Some(file) = tree_view_show(ui, &self.folder).clicked_leaf{
+                    self.file = file;
+                    self.parse_md();
+                }
+                
                 ui.vertical(|ui| {
                     md_to_frame(ui, &self.md);
                 });
                 ui.vertical(|ui| {
-                    if ui.add( editor_with_title(&self.file.name, &mut self.file.buf, &mut self.file.is_modified)).changed() {
+                    if editor_with_title_show(ui, &self.file.name, &mut self.file.buf, &mut self.file.is_modified).changed() {
                         self.parse_md();
                     }
                 });
             });
-            ui.label("hi");
         });
         ctx.input(|i| {
             if i.viewport().close_requested() {
                 self.save_state();
             }
         });
+    }
+}
+
+
+impl TreeViewNode<RayFile> for &RayFolder
+{
+    fn title(&self) -> &str {
+        &self.name
+    }
+
+    fn children(&self) -> Vec<Self> {
+        self.folders.iter().collect()
+    }
+
+    fn leaves(&self) -> Vec<RayFile> {
+        self.files.iter().map(|name|RayFile::new(name.clone())).collect()
+    }
+}
+
+impl TreeViewLeaf for RayFile {
+    fn title(&self) -> &str {
+        &self.name
     }
 }
