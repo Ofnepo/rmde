@@ -8,14 +8,16 @@ use crate::core::{RayFile, RayFolder, MyApp};
 use crate::ui::{editor_with_title_show, TreeViewNode, TreeViewLeaf, tree_view_show};
 
 fn main() -> Result<(), eframe::Error> {
-    //let mut file = RayFile::new("README.md".into());
-
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
         ..Default::default()
     };
 
-    eframe::run_native("rmde", options, Box::new(|_| Box::<MyApp>::default()))
+    eframe::run_native("rmde", options, Box::new(|_| {
+        let mut app = Box::<MyApp>::default();
+        let _ = app.load_state();
+        app
+    }))
 }
 
 impl eframe::App for MyApp {
@@ -23,16 +25,16 @@ impl eframe::App for MyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui.button("Save").clicked() {
-                    self.file.save();
+                    let _ = self.file.save();
                 }
                 if ui.button("Open").clicked() {
                     if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        self.file = RayFile::new(path.display().to_string());
+                        self.file = RayFile::new(&path);
                     }
                 }
                 if ui.button("Open Folder").clicked() {
                     if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                        self.folder = RayFolder::new(path.display().to_string());
+                        self.folder = RayFolder::new(&path);
                     }
                 }
             });
@@ -46,7 +48,7 @@ impl eframe::App for MyApp {
                     md_to_frame(ui, &self.md);
                 });
                 ui.vertical(|ui| {
-                    if editor_with_title_show(ui, &self.file.name, &mut self.file.buf, &mut self.file.is_modified).changed() {
+                    if editor_with_title_show(ui, &self.file.name_or_default().to_owned() , &mut self.file.buf, &mut self.file.is_modified).changed() {
                         self.parse_md();
                     }
                 });
@@ -54,7 +56,7 @@ impl eframe::App for MyApp {
         });
         ctx.input(|i| {
             if i.viewport().close_requested() {
-                self.save_state();
+                let _ = self.save_state();
             }
         });
     }
@@ -63,8 +65,8 @@ impl eframe::App for MyApp {
 
 impl TreeViewNode<RayFile> for &RayFolder
 {
-    fn title(&self) -> &str {
-        &self.name
+    fn title(&self) -> String {
+        self.name_or_default()
     }
 
     fn children(&self) -> Vec<Self> {
@@ -72,12 +74,12 @@ impl TreeViewNode<RayFile> for &RayFolder
     }
 
     fn leaves(&self) -> Vec<RayFile> {
-        self.files.iter().map(|name|RayFile::new(name.clone())).collect()
+        self.files.iter().map(|path|RayFile::new(path)).collect()
     }
 }
 
 impl TreeViewLeaf for RayFile {
-    fn title(&self) -> &str {
-        &self.name
+    fn title(&self) -> String {
+        self.name_or_default()
     }
 }

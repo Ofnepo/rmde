@@ -27,14 +27,14 @@ where
     Leaf: TreeViewLeaf
 {
 
-    fn title(&self) -> &str;
+    fn title(&self) -> String;
     fn children(&self) -> Vec<Self>;
     fn leaves(&self) -> Vec<Leaf>;
 }
 
 pub trait TreeViewLeaf
 {
-    fn title(&self) -> &str;
+    fn title(&self) -> String;
 }
 
 pub fn tree_view_show<L, N>(ui: &mut Ui, node: N) -> TreeViewResponse<L>

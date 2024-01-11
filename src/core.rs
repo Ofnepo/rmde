@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::{read_dir, OpenOptions},
-    io::{Read, Write},
+    fs::{read_dir, read_to_string, write},
+    io::{Error, ErrorKind}, path::{PathBuf, Path},
 };
 use markdown::{
     mdast::{Node, Root},
@@ -10,107 +10,82 @@ use markdown::{
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct RayFile {
-    pub path: String,
-    pub name: String,
+    pub path: Option<PathBuf>,
     pub buf: String,
     pub is_modified: bool
 }
 
 impl RayFile {
-    pub fn new(path: String) -> Self {
-        match path {
-            c if c.is_empty() => Self::default(),
-            _ => {
-                let mut buf = String::new();
-                let mut file = OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .truncate(false)
-                    .open(&path)
-                    .unwrap();
-                file.read_to_string(&mut buf).ok();
-
-                let name = path.split('/').last().unwrap().to_string();
-
-                //println!("Path: {}\nOrigin: {}\nBuf: {}", &path, &origin, &buf);
-                Self {
-                    name,
-                    path,
-                    buf,
-                    is_modified: false
-                }
-            }
+    pub fn new(path: &Path) -> Self {
+        let read_result = read_to_string(path).ok();
+        let is_modified = read_result.is_none();
+        let buf = read_result.unwrap_or(String::default());
+        Self {
+            path: Some(path.to_path_buf()),
+            buf,
+            is_modified: is_modified
         }
     }
 
-    pub fn save(&mut self){
-        let mut save_file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&self.path)
-            .unwrap();
-        self.is_modified = false;
-        save_file.write_all(self.buf.as_bytes()).ok();
+    pub fn save(&mut self) -> Result<(), Error>{ 
+        if let Some(path) = &self.path {
+            let result = write(&path, &mut self.buf);
+            if result.is_ok() {
+                self.is_modified = false
+            }
+            result
+        } else {
+            Err(Error::new(ErrorKind::InvalidInput, "tried to save file with empty path"))
+        }
+    }
+
+    pub fn name(&self) -> Option<String> {
+        self.path.clone()?.file_name()?.to_str().map(str::to_string)
+    }
+
+    pub fn name_or_default(&self) -> String {
+        self.name().unwrap_or("<unnamed file>".to_string())
     }
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct RayFolder {
-    pub path: String,
-    pub name: String,
-    pub files: Vec<String>,
+    pub path: Option<PathBuf>,
+    pub files: Vec<PathBuf>,
     pub folders: Vec<RayFolder>,
 }
 
 impl RayFolder {
-    pub fn new(path: String) -> Self {
-        if path.is_empty() {
-            Self::default()
-        } else {
-            let dir = read_dir(&path).ok().unwrap();
-            let mut dirs: Vec<RayFolder> = Vec::new();
-            let mut files: Vec<String> = Vec::new();
-            dir.for_each(|a| {
-                let i = a.ok().unwrap();
-
-                if i.file_type().ok().unwrap().is_dir() {
-                    dirs.push(RayFolder::new(i.path().to_str().unwrap().to_string()));
-                } else {
-                    files.push(i.path().to_str().unwrap().to_string());
+    pub fn new(path: &Path) -> Self {
+        let mut dirs: Vec<RayFolder> = Vec::new();
+        let mut files: Vec<PathBuf> = Vec::new();
+        if let Ok(dir) = read_dir(&path) {
+            for entry in dir.flat_map(Result::ok) {
+                match entry.file_type() {
+                    Ok(typ) => {
+                        if typ.is_file() {
+                            files.push(entry.path())
+                        }else if typ.is_dir() {
+                            dirs.push(RayFolder::new(&entry.path()))
+                        }
+                    }
+                    _ => ()
                 }
-            });
-            let name = path.split('/').last().unwrap().to_string();
-
-            Self {
-                name,
-                path,
-                files,
-                folders: dirs,
             }
+        }
+        Self {
+            path: Some(path.to_path_buf()),
+            files,
+            folders: dirs,
         }
     }
-    fn _data(self) -> String {
-        let mut file_temp = String::new();
-        for i in &self.files {
-            file_temp += &i.split('/').last().unwrap();
-            file_temp += ", ";
-        }
-        let mut folder_temp = String::new();
-        for dir in self.folders {
-            for line in dir._data().split('\n') {
-                folder_temp += "\n\t";
-                folder_temp += line;
-            }
-        }
 
-        "\nname: ".to_string()
-            + &self.name
-            + "\nfiles: "
-            + &file_temp
-            + "\nfolders: "
-            + &folder_temp
+    pub fn name(&self) -> Option<String> {
+        self.path.clone()?.file_name()?.to_str().map(str::to_string)
+    }
+
+    pub fn name_or_default(&self) -> String {
+        self.name().unwrap_or("<unnamed folder>".to_string())
     }
 }
 
@@ -122,43 +97,36 @@ pub struct MyApp {
 
 impl Default for MyApp {
     fn default() -> Self {
-        let state = RayFile::new(".state.ron".to_string()).buf;
-
-        let mut res = Self {
+        Self {
             file: RayFile::default(),
             folder: RayFolder::default(),
-            md: Node::Root(Root {
-                children: Vec::new(),
-                position: None,
-            }),
-        };
-        if state.is_empty() {
-            return res;
+            md: Node::Root(Root { children: Vec::new(), position: None })
         }
-        let state: (RayFile, RayFolder) = ron::from_str(&state).unwrap();
-        res.file = state.0;
-        res.folder = state.1;
-        res.md = to_mdast(&res.file.buf, &ParseOptions::default()).unwrap();
-        res
     }
 }
 
 impl MyApp {
-    pub fn save_state(&self) {
+    const STATE_FILE_PATH: &str = ".state.ron";
+
+    pub fn save_state(&self) -> Result<(), Error> {
         let state = ron::ser::to_string_pretty(
             &(&self.file, &self.folder),
             ron::ser::PrettyConfig::default(),
-        )
-        .unwrap();
+        ).map_err(|err| Error::new(ErrorKind::Other, err))?;
 
-        let mut save_file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(".state.ron")
-            .unwrap();
-        save_file.write_all(state.as_bytes()).ok();
+        write(Self::STATE_FILE_PATH, state)
+    }
+    
+    pub fn load_state(&mut self) -> Result<(), Error>{
+        let (file, folder) = ron::from_str(&read_to_string(Self::STATE_FILE_PATH)?)
+            .map_err(|err| Error::new(ErrorKind::Other, err))?;
 
+        self.file = file;
+        self.folder = folder;
+
+        self.parse_md();
+
+        Ok(())
     }
 
     pub fn parse_md(&mut self) {
