@@ -1,11 +1,9 @@
-pub mod my_lib;
-pub mod core;
+mod core;
 mod ui;
 
 use eframe::egui::{self};
-use my_lib::md_to_frame;
 use crate::core::{RayFile, RayFolder, MyApp};
-use crate::ui::{editor_with_title_show, TreeViewNode, TreeViewLeaf, tree_view_show};
+use crate::ui::{editor::editor_with_title_show, treeview::{TreeViewNode, TreeViewLeaf, tree_view_show}, mdview::md_view_show};
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
@@ -45,7 +43,7 @@ impl eframe::App for MyApp {
                 }
                 
                 ui.vertical(|ui| {
-                    md_to_frame(ui, &self.md);
+                    md_view_show(ui, &self.md);
                 });
                 ui.vertical(|ui| {
                     if editor_with_title_show(ui, &self.file.name_or_default().to_owned() , &mut self.file.buf, &mut self.file.is_modified).changed() {
