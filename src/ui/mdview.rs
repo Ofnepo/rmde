@@ -20,12 +20,12 @@ pub fn md_view_show(ui: &mut Ui, md: &Node) {
         _ => (),
     }
     for child in md.children().into_iter().flatten() {
-       md_view_show(ui, child); 
+        md_view_show(ui, child);
     }
 }
 
 fn get_text(md: &Node) -> &str {
-    for c in md.children().unwrap() {
+    if let Some(c) = md.children().unwrap().iter().next() {
         return match c {
             Node::Text(a) => &a.value,
             _ => "",

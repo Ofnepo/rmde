@@ -1,41 +1,45 @@
-use serde::{Deserialize, Serialize};
-use std::{
-    fs::{read_dir, read_to_string, write},
-    io::{Error, ErrorKind}, path::{PathBuf, Path},
-};
 use markdown::{
     mdast::{Node, Root},
     to_mdast, ParseOptions,
+};
+use serde::{Deserialize, Serialize};
+use std::{
+    fs::{read_dir, read_to_string, write},
+    io::{Error, ErrorKind},
+    path::{Path, PathBuf},
 };
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct RayFile {
     pub path: Option<PathBuf>,
     pub buf: String,
-    pub is_modified: bool
+    pub is_modified: bool,
 }
 
 impl RayFile {
     pub fn new(path: &Path) -> Self {
         let read_result = read_to_string(path).ok();
         let is_modified = read_result.is_none();
-        let buf = read_result.unwrap_or(String::default());
+        let buf = read_result.unwrap_or_default();
         Self {
             path: Some(path.to_path_buf()),
             buf,
-            is_modified: is_modified
+            is_modified,
         }
     }
 
-    pub fn save(&mut self) -> Result<(), Error>{ 
+    pub fn save(&mut self) -> Result<(), Error> {
         if let Some(path) = &self.path {
-            let result = write(&path, &mut self.buf);
+            let result = write(path, &mut self.buf);
             if result.is_ok() {
                 self.is_modified = false
             }
             result
         } else {
-            Err(Error::new(ErrorKind::InvalidInput, "tried to save file with empty path"))
+            Err(Error::new(
+                ErrorKind::InvalidInput,
+                "tried to save file with empty path",
+            ))
         }
     }
 
@@ -59,17 +63,14 @@ impl RayFolder {
     pub fn new(path: &Path) -> Self {
         let mut dirs: Vec<RayFolder> = Vec::new();
         let mut files: Vec<PathBuf> = Vec::new();
-        if let Ok(dir) = read_dir(&path) {
+        if let Ok(dir) = read_dir(path) {
             for entry in dir.flat_map(Result::ok) {
-                match entry.file_type() {
-                    Ok(typ) => {
-                        if typ.is_file() {
-                            files.push(entry.path())
-                        }else if typ.is_dir() {
-                            dirs.push(RayFolder::new(&entry.path()))
-                        }
+                if let Ok(typ) = entry.file_type() {
+                    if typ.is_file() {
+                        files.push(entry.path())
+                    } else if typ.is_dir() {
+                        dirs.push(RayFolder::new(&entry.path()))
                     }
-                    _ => ()
                 }
             }
         }
@@ -100,24 +101,28 @@ impl Default for MyApp {
         Self {
             file: RayFile::default(),
             folder: RayFolder::default(),
-            md: Node::Root(Root { children: Vec::new(), position: None })
+            md: Node::Root(Root {
+                children: Vec::new(),
+                position: None,
+            }),
         }
     }
 }
 
 impl MyApp {
-    const STATE_FILE_PATH: &str = ".state.ron";
+    const STATE_FILE_PATH: &'static str = ".state.ron";
 
     pub fn save_state(&self) -> Result<(), Error> {
         let state = ron::ser::to_string_pretty(
             &(&self.file, &self.folder),
             ron::ser::PrettyConfig::default(),
-        ).map_err(|err| Error::new(ErrorKind::Other, err))?;
+        )
+        .map_err(|err| Error::new(ErrorKind::Other, err))?;
 
         write(Self::STATE_FILE_PATH, state)
     }
-    
-    pub fn load_state(&mut self) -> Result<(), Error>{
+
+    pub fn load_state(&mut self) -> Result<(), Error> {
         let (file, folder) = ron::from_str(&read_to_string(Self::STATE_FILE_PATH)?)
             .map_err(|err| Error::new(ErrorKind::Other, err))?;
 
